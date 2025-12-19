@@ -4,7 +4,7 @@ import path from "node:path";
 
 /**
  * Extract route-level JSDoc metadata from route app export
- * Looks for @prefix, @name, @description tags
+ * Looks for @prefix, @name tags
  */
 function extractRouteMetadata(sourceFile: SourceFile): RouteMetadata {
   const metadata: RouteMetadata = {};
@@ -46,13 +46,6 @@ function extractRouteMetadata(sourceFile: SourceFile): RouteMetadata {
   if (nameTag) {
     const comment = nameTag.getComment();
     metadata.name = typeof comment === "string" ? comment : comment?.map((c) => c.getText()).join("");
-  }
-
-  // Extract @description
-  const descTag = tags.find((tag) => tag.getTagName() === "description");
-  if (descTag) {
-    const comment = descTag.getComment();
-    metadata.description = typeof comment === "string" ? comment : comment?.map((c) => c.getText()).join("");
   }
 
   return metadata;

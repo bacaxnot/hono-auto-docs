@@ -80,11 +80,6 @@ export type RouteMetadata = {
    * Group name override from JSDoc @name tag
    */
   name?: string;
-
-  /**
-   * Description from JSDoc @description tag
-   */
-  description?: string;
 };
 
 /**
