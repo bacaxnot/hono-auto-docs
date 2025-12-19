@@ -1,5 +1,5 @@
 {
-  "name": "@bacaxnot/hono-auto-docs",
+  "name": "hono-auto-docs",
   "version": "0.1.2",
   "description": "Auto-generate OpenAPI 3.0 spec from Hono routes with JSDoc - zero config, maximum automation",
   "type": "module",
