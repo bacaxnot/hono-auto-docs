@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "My API",
+    "title": "Basic App API",
     "version": "1.0.0"
   },
   "servers": [
@@ -11,13 +11,13 @@
   ],
   "tags": [
     {
-      "name": "User Routes"
+      "name": "Users"
     }
   ],
   "paths": {
     "/user": {
       "get": {
-        "summary": "Auto-generated GET /",
+        "summary": "Get all users",
         "responses": {
           "default": {
             "description": "Default fallback response",
@@ -38,14 +38,15 @@
             }
           }
         },
+        "description": "Returns a list of all users in the system",
         "tags": [
-          "UserList"
+          "Users"
         ]
       }
     },
     "/user/u/{id}": {
       "get": {
-        "summary": "Auto-generated GET /u/{id}",
+        "summary": "Get user details",
         "parameters": [
           {
             "name": "id",
@@ -76,8 +77,9 @@
             }
           }
         },
+        "description": "Returns detailed information about a specific user",
         "tags": [
-          "User Routes"
+          "Users"
         ]
       }
     }

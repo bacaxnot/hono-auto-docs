@@ -85,50 +85,52 @@ function generatePrefixFromFilename(filename: string): string {
 }
 
 /**
- * Normalize a string path or ApiGroup object to a full ApiGroup
- * @param api - Either a file path string or full ApiGroup object
+ * Normalize a string path or internal ApiGroup to a full ApiGroup with all metadata
+ *
+ * Two input types:
+ * 1. String path from user config (apis array) - auto-discovers prefix and name
+ * 2. Internal ApiGroup from discoverRoutesFromApp - already has prefix, needs name
+ *
+ * @param api - File path string (from config) or partial ApiGroup (from route discovery)
  * @param project - ts-morph Project for reading JSDoc
  * @param rootPath - Root path of the project
- * @returns Normalized ApiGroup object
+ * @returns Complete ApiGroup with apiPrefix, appTypePath, and name
  */
 export function normalizeApiGroup(
   api: string | ApiGroup,
   project: Project,
   rootPath: string
 ): ApiGroup {
-  // If it's an object with a non-empty name, return as-is (fully configured)
+  // If it's already a complete ApiGroup (has name), return as-is
   if (typeof api !== "string" && api.name) {
     return api;
   }
 
-  // It's either a string path, or an object that needs name auto-discovery
+  // Extract appTypePath (either from string or object)
   const appTypePath = typeof api === "string" ? api : api.appTypePath;
   const filename = path.basename(appTypePath);
 
-  // Try to extract JSDoc metadata from the route file
+  // Load route file and extract JSDoc metadata
   const fullPath = path.join(rootPath, appTypePath);
   const sourceFile = project.getSourceFile(fullPath) || project.addSourceFileAtPath(fullPath);
-
   const routeMetadata = sourceFile ? extractRouteMetadata(sourceFile) : {};
 
-  // Priority: JSDoc @name > convention (filename)
+  // Priority: JSDoc @name > filename convention
   const name = routeMetadata.name || generateNameFromFilename(filename);
 
-  // If it's a string, also auto-discover the prefix
+  // String input (from user config): discover both prefix and name
   if (typeof api === "string") {
-    // Priority: JSDoc @prefix > convention (filename)
+    // Priority: JSDoc @prefix > filename convention
     const apiPrefix = routeMetadata.prefix || generatePrefixFromFilename(filename);
 
     return {
       appTypePath,
       apiPrefix,
       name,
-      // No api array - let JSDoc on handlers provide all metadata
     };
   }
 
-  // It's an object with apiPrefix already set (from route discovery)
-  // Just fill in the name
+  // Object input (from route discovery): already has prefix from .route(), just add name
   return {
     ...api,
     name,

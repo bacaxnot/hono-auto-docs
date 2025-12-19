@@ -1,6 +1,10 @@
 import type { Node, Project, SourceFile } from "ts-morph";
 import { SyntaxKind } from "ts-morph";
-import { extractJsDocFromHandler, type JsDocMetadata } from "./extractJsDoc.js";
+import {
+  extractJsDocFromHandler,
+  extractJsDocFromCallExpression,
+  type JsDocMetadata
+} from "./extractJsDoc.js";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -69,8 +73,17 @@ function parseMethodChain(
   rootPath: string,
   tsConfigPath?: string
 ) {
-  // Get all call expressions in the chain
-  const callExpressions = node.getDescendantsOfKind(SyntaxKind.CallExpression);
+  // Traverse the method chain manually to catch all chained calls
+  const callExpressions: any[] = [];
+
+  function traverse(n: Node) {
+    if (n.getKind() === SyntaxKind.CallExpression) {
+      callExpressions.push(n);
+    }
+    n.forEachChild(traverse);
+  }
+
+  traverse(node);
 
   for (const call of callExpressions) {
     const expression = call.getExpression();
@@ -96,49 +109,58 @@ function parseMethodChain(
       else routePath = "/";
     }
 
-    // Find spread handler arguments (e.g., ...getAccountsHandlers)
-    const spreadArgs = args.filter((arg) =>
-      arg.getText().startsWith("...")
-    );
+    let jsDocMeta: JsDocMetadata | null = null;
 
-    if (spreadArgs.length === 0) continue;
+    // PRIORITY 1: Check for inline handler JSDoc (most common pattern)
+    // JSDoc comment appears directly above the method call
+    jsDocMeta = extractJsDocFromCallExpression(call);
 
-    // Get handler name
-    const handlerName = spreadArgs[0].getText().replace(/^\.\.\./g, "");
+    // PRIORITY 2: Check for spread handler (external handler pattern)
+    if (!jsDocMeta) {
+      const spreadArgs = args.filter((arg) =>
+        arg.getText().startsWith("...")
+      );
 
-    // Trace import to find source file
-    const handlerSourcePath = traceHandlerImport(
-      sourceFile,
-      handlerName,
-      rootPath,
-      tsConfigPath
-    );
+      if (spreadArgs.length > 0) {
+        // Get handler name
+        const handlerName = spreadArgs[0].getText().replace(/^\.\.\./g, "");
 
-    if (!handlerSourcePath) continue;
+        // Trace import to find source file
+        const handlerSourcePath = traceHandlerImport(
+          sourceFile,
+          handlerName,
+          rootPath,
+          tsConfigPath
+        );
 
-    // Load handler source file
-    let handlerFile = project.getSourceFile(handlerSourcePath);
-    if (!handlerFile) {
-      // Try adding .ts extension if not found
-      const withExt = handlerSourcePath.endsWith(".ts")
-        ? handlerSourcePath
-        : `${handlerSourcePath}.ts`;
-      handlerFile = project.addSourceFileAtPath(withExt);
+        if (handlerSourcePath) {
+          // Load handler source file
+          let handlerFile = project.getSourceFile(handlerSourcePath);
+          if (!handlerFile) {
+            // Try adding .ts extension if not found
+            const withExt = handlerSourcePath.endsWith(".ts")
+              ? handlerSourcePath
+              : `${handlerSourcePath}.ts`;
+            handlerFile = project.addSourceFileAtPath(withExt);
+          }
+
+          if (handlerFile) {
+            // Extract JSDoc metadata from external handler
+            jsDocMeta = extractJsDocFromHandler(handlerFile, handlerName);
+          }
+        }
+      }
     }
 
-    if (!handlerFile) continue;
-
-    // Extract JSDoc metadata
-    const jsDocMeta = extractJsDocFromHandler(handlerFile, handlerName);
-    if (!jsDocMeta) continue;
-
-    // Create key: "method path"
-    const key = `${method} ${routePath}`;
-    metadataMap.set(key, {
-      path: routePath,
-      method,
-      ...jsDocMeta,
-    });
+    // Only add to map if we found JSDoc metadata
+    if (jsDocMeta && (jsDocMeta.summary || jsDocMeta.description || jsDocMeta.tags)) {
+      const key = `${method} ${routePath}`;
+      metadataMap.set(key, {
+        path: routePath,
+        method,
+        ...jsDocMeta,
+      });
+    }
   }
 }
 
