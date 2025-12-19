@@ -68,6 +68,26 @@ export type ApiGroup = {
 };
 
 /**
+ * Route-level JSDoc metadata that can be defined on the route app export
+ */
+export type RouteMetadata = {
+  /**
+   * API prefix override from JSDoc @prefix tag
+   */
+  prefix?: string;
+
+  /**
+   * Group name override from JSDoc @name tag
+   */
+  name?: string;
+
+  /**
+   * Description from JSDoc @description tag
+   */
+  description?: string;
+};
+
+/**
  * Top-level configuration object for hono-docs.
  */
 export type HonoDocsConfig = {
@@ -93,8 +113,12 @@ export type HonoDocsConfig = {
 
   /**
    * List of API groups (routes) to generate docs for.
+   * Can be either:
+   * - String: file path to route (e.g., "src/routes/accounts.ts")
+   *   Auto-discovers apiPrefix and name from filename or JSDoc
+   * - Object: full ApiGroup configuration (backward compatible)
    */
-  apis: ApiGroup[];
+  apis: (string | ApiGroup)[];
 
   /**
    * Optional raw string content to inject at the top of each generated `.d.ts` snapshot.

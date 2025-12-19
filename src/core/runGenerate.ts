@@ -7,6 +7,8 @@ import { generateOpenApi } from "./generateOpenApi";
 import { Api } from "../types";
 import { cleanDefaultResponse, sanitizeApiPrefix } from "../utils/format";
 import { getLibDir } from "../utils/libDir";
+import { discoverHandlersFromRoute } from "../utils/traceHandlers.js";
+import { normalizeApiGroup } from "../utils/normalizeApiGroup.js";
 
 export async function runGenerate(configPath: string) {
   const config = await loadConfig(configPath);
@@ -26,7 +28,10 @@ export async function runGenerate(configPath: string) {
   const libDir = getLibDir();
   console.log("Library root directory:", libDir);
 
-  const apis = config.apis;
+  // Normalize all API groups (convert strings to full ApiGroup objects)
+  const normalizedApis = config.apis.map((api) =>
+    normalizeApiGroup(api, project, rootPath)
+  );
 
   const snapshotOutputRoot = path.resolve(libDir, "output/types");
   const openAPiOutputRoot = path.resolve(libDir, "output/openapi");
@@ -37,7 +42,7 @@ export async function runGenerate(configPath: string) {
     project,
     rootPath,
   };
-  for (const apiGroup of apis) {
+  for (const apiGroup of normalizedApis) {
     const sanitizedName = sanitizeApiPrefix(apiGroup.apiPrefix);
 
     const snapshotPath = await generateTypes({
@@ -62,7 +67,7 @@ export async function runGenerate(configPath: string) {
     paths: {} as Record<string, any>,
   };
 
-  for (const apiGroup of apis) {
+  for (const apiGroup of normalizedApis) {
     const name = sanitizeApiPrefix(apiGroup.apiPrefix);
     const openApiFile = path.join(openAPiOutputRoot, `${name}.json`);
 
@@ -89,6 +94,26 @@ export async function runGenerate(configPath: string) {
       }
     }
 
+    // NEW: Extract JSDoc metadata from handler files
+    const jsDocMapRaw = discoverHandlersFromRoute(
+      project,
+      path.join(rootPath, apiGroup.appTypePath),
+      rootPath,
+      config.tsConfigPath
+    );
+
+    // Remap JSDoc keys to include apiPrefix for matching
+    const jsDocMap = new Map<string, typeof jsDocMapRaw extends Map<string, infer T> ? T : never>();
+    for (const [key, metadata] of jsDocMapRaw.entries()) {
+      // key format: "method path" (e.g., "get /" or "put /:id")
+      const [method, routePath] = key.split(" ", 2);
+      // Convert :param to {param} to match OpenAPI format
+      const normalizedPath = routePath.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, "{$1}");
+      const prefixedPath = path.posix.join(apiGroup.apiPrefix, normalizedPath).replace(/\/+$/, "") || "/";
+      const prefixedKey = `${method} ${prefixedPath}`;
+      jsDocMap.set(prefixedKey, metadata);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const [pathKey, operations] of Object.entries<any>(json.paths)) {
       const prefixedPath =
@@ -99,8 +124,23 @@ export async function runGenerate(configPath: string) {
       for (const [method, operation] of Object.entries<any>(operations)) {
         const opKey = `${method.toLowerCase()} ${prefixedPath}`;
         const customApi = customApiMap.get(opKey);
+        const jsDocMeta = jsDocMap.get(opKey);
 
-        // Override or enrich metadata if defined
+        // Apply metadata in priority order:
+        // 1. Auto-generated (already set in operation)
+        // 2. JSDoc from handler files (if available)
+        // 3. Config file (highest priority)
+
+        // Apply JSDoc metadata (fallback if auto-generated is empty)
+        if (jsDocMeta) {
+          operation.summary = jsDocMeta.summary || operation.summary;
+          operation.description = jsDocMeta.description || operation.description;
+          if (jsDocMeta.tags && jsDocMeta.tags.length > 0) {
+            operation.tags = jsDocMeta.tags;
+          }
+        }
+
+        // Override or enrich metadata from config (highest priority)
         if (customApi) {
           operation.summary = customApi.summary || operation.summary;
           operation.description =
@@ -108,12 +148,14 @@ export async function runGenerate(configPath: string) {
           operation.tags =
             customApi.tag && customApi.tag.length > 0
               ? customApi.tag
-              : [apiGroup.name];
-        } else {
-          operation.tags = operation.tags || [];
-          if (!operation.tags.includes(apiGroup.name)) {
-            operation.tags.push(apiGroup.name);
-          }
+              : operation.tags;
+        }
+
+        // Ensure tags array exists and includes apiGroup name if no custom tags
+        if (!operation.tags || operation.tags.length === 0) {
+          operation.tags = [apiGroup.name];
+        } else if (!operation.tags.includes(apiGroup.name)) {
+          operation.tags.push(apiGroup.name);
         }
 
         cleanDefaultResponse(operation, prefixedPath, method);
