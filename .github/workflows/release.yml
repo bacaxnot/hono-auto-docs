@@ -11,26 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20]
+        bun-version: [latest]
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 10
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: pnpm
+          bun-version: ${{ matrix.bun-version }}
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: pnpm build
+        run: bun run build
 
   release:
     needs: build-test
@@ -39,22 +33,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 10
+          bun-version: latest
 
-      - name: Use Node.js
+      - name: Setup Node.js for npm registry
         uses: actions/setup-node@v3
         with:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
-          cache: pnpm
 
       - name: Install dependencies & build
         run: |
-          pnpm install --frozen-lockfile
-          pnpm build
+          bun install --frozen-lockfile
+          bun run build
 
       - name: Authenticate to npm registry
         env:
@@ -65,5 +58,4 @@ jobs:
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-        run: pnpm publish --access public --no-git-checks
+        run: npm publish --access public

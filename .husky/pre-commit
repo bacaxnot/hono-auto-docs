@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
-pnpm run lint
+bun run lint
 
-pnpm run build
+bun run build

@@ -1,346 +1,335 @@
-# @rcmade/hono-docs
+# @bacaxnot/hono-auto-docs
 
-> Auto-generate OpenAPI 3.0 spec and TypeScript type snapshots from Hono route type definitions
+> Auto-generate OpenAPI 3.0 spec from Hono routes with JSDoc - zero config, maximum automation
 
 ---
 
 ## Features
 
-- **CLI** (`@rcmade/hono-docs generate`) to:
-  - Extract your route `AppType` definitions via **ts-morph**
-  - Emit `.json` OpenAPI” files per API prefix under `output/*.json`
-  - Generate a merged `openapi.json` spec at your configured output path
-- Full TypeScript support (TS & JS config files, inference via `defineConfig`)
+- **Zero Configuration**: Point to your main app file and auto-discover all routes
+- **JSDoc-Based**: All metadata lives in your code via JSDoc comments
+- **Convention Over Configuration**: Automatic prefix and name generation from filenames
+- **Two Modes**:
+  - **Fully Automatic** (`appPath`): Discover routes from main app `.route()` calls
+  - **Semi-Automatic** (`apis`): List route files with JSDoc overrides for complex setups
+- **CLI** (`hono-auto-docs generate`):
+  - Extract route `AppType` definitions via **ts-morph**
+  - Generate merged `openapi.json` spec
+- Full TypeScript support (TS & JS config files, inference via `defineConfig`)
+
+---
+
+## Philosophy
+
+**Metadata lives in code, not in config files.**
+
+This package enforces a JSDoc-based approach where all route metadata (@prefix, @name, @summary, @description, @tags) is defined directly in your route files. No verbose object configuration needed.
 
 ---
 
 ## Table of Contents
 
-- [@rcmade/hono-docs](#rcmadehono-docs)
-  - [Features](#features)
-  - [Table of Contents](#table-of-contents)
-  - [Install](#install)
-  - [Quick Start](#quick-start)
-  - [⚠️ Limitations: Grouped `AppType` Not Supported](#️-limitations-grouped-apptype-not-supported)
-    - [✅ Supported: Individual AppType per Module](#-supported-individual-apptype-per-module)
-  - [Serving the OpenAPI Docs](#serving-the-openapi-docs)
-  - [Configuration](#configuration)
-  - [CLI Usage](#cli-usage)
-  - [Programmatic Usage](#programmatic-usage)
-  - [Examples](#examples)
-  - [Development](#development)
-  - [Contributing](#contributing)
-  - [License](#license)
+- [Install](#install)
+- [Quick Start](#quick-start)
+  - [Mode 1: Fully Automatic (Recommended)](#mode-1-fully-automatic-recommended)
+  - [Mode 2: Semi-Automatic (Complex Setups)](#mode-2-semi-automatic-complex-setups)
+- [JSDoc Annotations](#jsdoc-annotations)
+- [Configuration Reference](#configuration-reference)
+- [Serving the OpenAPI Docs](#serving-the-openapi-docs)
+- [CLI Usage](#cli-usage)
+- [Programmatic Usage](#programmatic-usage)
+- [Limitations](#limitations)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## Install
 
 ```bash
-# using npm
-npm install --save-dev @rcmade/hono-docs
+# using bun
+bun add -d @bacaxnot/hono-auto-docs
 
-# using pnpm
-pnpm add -D @rcmade/hono-docs
+# using npm
+npm install --save-dev @bacaxnot/hono-auto-docs
 
 # using yarn
-yarn add -D @rcmade/hono-docs
+yarn add -D @bacaxnot/hono-auto-docs
 ```
 
 ---
 
 ## Quick Start
 
-1. **Create a config file** at the root of your project (`hono-docs.ts`):
+### Mode 1: Fully Automatic (Recommended)
+
+For simple single-file route mounting patterns, just point to your main app file:
+
+1. **Create a config file** (`hono-docs.ts`):
 
    ```ts
-   import { defineConfig } from "@rcmade/hono-docs";
+   import { defineConfig } from "@bacaxnot/hono-auto-docs";
 
    export default defineConfig({
      tsConfigPath: "./tsconfig.json",
      openApi: {
        openapi: "3.0.0",
        info: { title: "My API", version: "1.0.0" },
-       servers: [{ url: "http://localhost:3000/api" }],
+       servers: [{ url: "http://localhost:8000" }],
      },
      outputs: {
-       openApiJson: "./openapi/openapi.json",
+       openApiJson: "./openapi.json",
      },
-     apis: [
-       {
-         name: "Auth Routes",
-         apiPrefix: "/auth", // This will be prepended to all `api` values below
-         appTypePath: "src/routes/authRoutes.ts", // Path to your AppType export
-
-         api: [
-           // ✅ Custom OpenAPI metadata for the GET /auth/u/{id} endpoint
-           {
-             api: "/u/{id}", // Final route = /auth/u/{id}
-             method: "get",
-             summary: "Fetch user by ID", // Optional: title shown in docs
-             description: "Returns a user object based on the provided ID.",
-             tag: ["User"],
-           },
-
-           // ✅ Another example with metadata for GET /auth
-           {
-             api: "/", // Final route = /auth/
-             method: "get",
-             summary: "Get current user",
-             description:
-               "Returns the currently authenticated user's information.",
-             tag: ["User Info"],
-           },
-         ],
-       },
-     ],
+     // ✅ Single entry point - auto-discovers all routes
+     appPath: "src/index.ts",
    });
    ```
 
-2. **Route Definitions & AppType**
-   This library supports **only change routes** via a single AppType export in your routes file. You **must** export:
-
-   ```ts
-   export type AppType = typeof yourRoutesVariable;
-   ```
-
-   **Example:**
-
-   ```ts
-   // src/routes/userRoutes.ts
-   import { Hono } from "hono";
-   import { z } from "zod";
-
-   export const userRoutes = new Hono()
-     .get("/u/:id", (c) => {
-       /* … */
-     })
-     .post("/", async (c) => {
-       /* … */
-     });
-   // Must add AppType
-   export type AppType = typeof userRoutes;
-   export default userRoutes;
-   ```
-
-   ## ⚠️ Limitations: Grouped `AppType` Not Supported
-
-   Currently, `@rcmade/hono-docs` **does not support** extracting route types from a grouped `AppType` where multiple sub-apps are composed using `.route()` or `.basePath()` on a single root app.
-
-   For example, the following pattern **is not supported**:
+2. **Your main app** (`src/index.ts`):
 
    ```ts
    import { Hono } from "hono";
-   import { docs } from "./docs";
-   import { userRoutes } from "./userRoutes";
+   import { accountsApp } from "./routes/accounts";
+   import { transactionsApp } from "./routes/transactions";
 
-   const app = new Hono()
-     .basePath("/api")
+   export const app = new Hono()
+     .route("/accounts", accountsApp)      // Auto-discovered: /accounts
+     .route("/transactions", transactionsApp); // Auto-discovered: /transactions
+   ```
+
+3. **Your route files** (`src/routes/accounts.ts`):
+
+   ```ts
+   import { Hono } from "hono";
+
+   /**
+    * @name Accounts
+    */
+   export const accountsApp = new Hono()
      .get("/", (c) => {
-       return c.text("Hello Hono!");
+       /* ... */
      })
-     .route("/docs", docs)
-     .route("/user", userRoutes);
-
-   // ❌ This Group AppType is not supported
-   type AppType = typeof app;
-   ```
-
-   ### ✅ Supported: Individual AppType per Module
-
-   Instead, define and export `AppType` individually for each route module:
-
-   ```ts
-   // docs.ts
-   import { Hono } from "hono";
-   import { Scalar } from "hono-scalar";
-   import fs from "node:fs/promises";
-   import path from "node:path";
-
-   const docs = new Hono()
-     .get(
-       "/",
-       Scalar({
-         url: "/api/docs/open-api",
-         theme: "kepler",
-         layout: "modern",
-         defaultHttpClient: { targetKey: "js", clientKey: "axios" },
-       })
-     )
-     .get("/open-api", async (c) => {
-       const raw = await fs.readFile(
-         path.join(process.cwd(), "./openapi/openapi.json"),
-         "utf-8"
-       );
-       return c.json(JSON.parse(raw));
+     .post("/", (c) => {
+       /* ... */
      });
 
-   // ✅ This AppType is supported
-   export type AppType = typeof docs;
-   ```
-
-   ```ts
-   // userRoutes.ts
-   import { Hono } from "hono";
-
-   export const userRoutes = new Hono()
-     .get("/", (c) => c.json({ name: "current user" }))
-     .get("/u/:id", (c) => c.json({ id: c.req.param("id") }));
-
-   // ✅ This AppType is supported
-   export type AppType = typeof userRoutes;
-   ```
-
-3. **Add an npm script** to `package.json`:
-
-   ```jsonc
-   {
-     "scripts": {
-       "docs": "npx @rcmade/hono-docs generate --config ./hono-docs.ts"
-     }
-   }
+   export type AppType = typeof accountsApp;
    ```
 
 4. **Run the CLI**:
 
    ```bash
-   npm run docs
-   # or
-   npx @rcmade/hono-docs generate --config ./hono-docs.ts
+   bunx hono-auto-docs generate --config ./hono-docs.ts
    ```
 
-   You’ll see:
+That's it! 🎉
 
-   ```text
-   ⏳ Generating Type Snapshots…
-   ✅ Wrote: node_modules/@rcmade/hono-docs/output/types/user.d.ts
-   ⏳ Generating OpenAPI Spec…
-   ✅ OpenAPI written to ./openapi/openapi.json
-   🎉 Done
-   ```
+---
+
+### Mode 2: Semi-Automatic (Complex Setups)
+
+For complex mounting patterns (nested routes, conditional mounting, etc.), list route files explicitly:
+
+```ts
+import { defineConfig } from "@bacaxnot/hono-auto-docs";
+
+export default defineConfig({
+  tsConfigPath: "./tsconfig.json",
+  openApi: {
+    openapi: "3.0.0",
+    info: { title: "My API", version: "1.0.0" },
+    servers: [{ url: "http://localhost:8000" }],
+  },
+  outputs: {
+    openApiJson: "./openapi.json",
+  },
+  // ✅ List route files - uses JSDoc @prefix or filename convention
+  apis: [
+    "src/routes/accounts.ts",
+    "src/routes/transactions.ts",
+    "src/routes/categories.ts",
+  ],
+});
+```
+
+**Route file with JSDoc overrides** (`src/routes/accounts.ts`):
+
+```ts
+import { Hono } from "hono";
+
+/**
+ * @prefix /accounts
+ * @name Accounts
+ */
+export const accountsApp = new Hono()
+  .get("/", (c) => {
+    /* ... */
+  })
+  .post("/", (c) => {
+    /* ... */
+  });
+
+export type AppType = typeof accountsApp;
+```
+
+Without `@prefix`, the prefix is auto-generated from the filename (`accounts.ts` → `/accounts`).
+
+---
+
+## JSDoc Annotations
+
+### Route-Level JSDoc (on Hono app export)
+
+Annotate your route app export to customize OpenAPI metadata:
+
+```ts
+/**
+ * @prefix /custom-prefix  // Optional: Override URL prefix
+ * @name My Route Group    // Optional: Override display name
+ */
+export const myApp = new Hono()
+  .get("/", (c) => { /* ... */ });
+```
+
+| Tag | Description | Fallback |
+|-----|-------------|----------|
+| `@prefix` | URL prefix for all routes | Filename convention (`accounts.ts` → `/accounts`) |
+| `@name` | Display name in OpenAPI tags | Filename convention (`accounts.ts` → `Accounts`) |
+
+### Endpoint-Level JSDoc (on route handlers)
+
+Annotate individual route handlers for rich endpoint documentation:
+
+```ts
+export const accountsApp = new Hono()
+  /**
+   * List all accounts
+   * @summary Get all accounts for the current user
+   * @description Returns a paginated list of all accounts owned by the authenticated user
+   * @tags Accounts, Finance
+   */
+  .get("/", (c) => {
+    /* ... */
+  })
+  /**
+   * Create a new account
+   * @summary Create account
+   * @description Creates a new financial account with the provided details
+   * @tags Accounts
+   */
+  .post("/", (c) => {
+    /* ... */
+  });
+```
+
+| Tag | Description |
+|-----|-------------|
+| `@summary` | Short summary for the endpoint |
+| `@description` | Detailed description |
+| `@tags` | Comma-separated tags for categorization |
+
+---
+
+## Configuration Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `tsConfigPath` | `string` | Yes | Path to your `tsconfig.json` |
+| `openApi` | `OpenAPIConfig` | Yes | Static OpenAPI fields (info, servers, etc.) |
+| `outputs` | `{ openApiJson: string }` | Yes | Output path for generated `openapi.json` |
+| `appPath` | `string` | No* | Path to main app file for auto-discovery |
+| `apis` | `string[]` | No* | Array of route file paths (for manual listing) |
+| `preDefineTypeContent` | `string` | No | Raw content injected at top of `.d.ts` snapshots |
+
+\* Either `appPath` or `apis` must be provided (mutually exclusive)
 
 ---
 
 ## Serving the OpenAPI Docs
 
-Install the viewer:
+Install the Scalar viewer:
 
 ```bash
-# npm
-npm install @scalar/hono-api-reference
-
-# yarn
-yarn add @scalar/hono-api-reference
-
-# pnpm
-pnpm add @scalar/hono-api-reference
+bun add @scalar/hono-api-reference
 ```
 
 Mount in your Hono app:
 
 ```ts
-// src/routes/docs.ts
 import { Hono } from "hono";
 import { Scalar } from "@scalar/hono-api-reference";
 import fs from "node:fs/promises";
-import path from "node:path";
 
-const docs = new Hono()
-  .get(
-    "/",
-    Scalar({
-      url: "/api/docs/open-api",
-      theme: "kepler",
-      layout: "modern",
-      defaultHttpClient: { targetKey: "js", clientKey: "axios" },
-    })
-  )
-  .get("/open-api", async (c) => {
-    const raw = await fs.readFile(
-      path.join(process.cwd(), "./openapi/openapi.json"),
-      "utf-8"
-    );
-    return c.json(JSON.parse(raw));
+const docsApp = new Hono()
+  .get("/", Scalar({ url: "/docs/openapi.json" }))
+  .get("/openapi.json", async (c) => {
+    const spec = await fs.readFile("./openapi.json", "utf-8");
+    return c.json(JSON.parse(spec));
   });
 
-export type AppType = typeof docs;
-export default docs;
+export const app = new Hono()
+  .route("/docs", docsApp)
+  .route("/accounts", accountsApp);
 ```
 
-In `src/index.ts`:
-
-```ts
-import { Hono } from "hono";
-import docs from "./routes/docs";
-import userRoutes from "./routes/userRoutes";
-
-export default new Hono()
-  .basePath("/api")
-  .route("/docs", docs)
-  .route("/user", userRoutes);
-```
-
-Visiting `/api/docs` shows the UI; `/api/docs/open-api` serves the JSON.
-
----
-
-## Configuration
-
-All options live in your `defineConfig({ ... })` object:
-
-| Field                  | Type                                              | Required | Description                                                                  |
-| ---------------------- | ------------------------------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `tsConfigPath`         | `string`                                          | Yes      | Path to your project’s `tsconfig.json`                                       |
-| `openApi`              | `OpenAPIConfig`                                   | Yes      | Static OpenAPI fields excluding `paths`, `components`, and `tags`            |
-| └ `openapi`            | `string`                                          | Yes      | OpenAPI version (e.g., `"3.0.0"`)                                            |
-| └ `info`               | `{ title: string; version: string }`              | Yes      | API title and version metadata                                               |
-| └ `servers`            | `Array<{ url: string }>`                          | Yes      | Array of server objects describing base URLs for the API                     |
-| `outputs`              | `{ openApiJson: string }`                         | Yes      | File output paths                                                            |
-| └ `openApiJson`        | `string`                                          | Yes      | Path to output the generated `openapi.json` file                             |
-| `apis`                 | `ApiGroup[]`                                      | Yes      | Array of route groups to include in the documentation                        |
-| └ `name`               | `string`                                          | Yes      | Human-readable name for the route group                                      |
-| └ `apiPrefix`          | `string`                                          | Yes      | URL path prefix for all routes in this group (e.g., `/auth`)                 |
-| └ `appTypePath`        | `string`                                          | Yes      | File path to the module exporting `AppType = typeof routesInstance`          |
-| └ `api`                | `Array<Api>`                                      | No       | Optional list of endpoint definitions; if omitted, all in `AppType` are used |
-|     └ `api`            | `string`                                          | Yes      | Endpoint path (without prefix), e.g., `/user/{id}`                           |
-|     └ `method`         | `"get" \| "post" \| "put" \| "patch" \| "delete"` | Yes      | HTTP method for the endpoint                                                 |
-|     └ `summary`        | `string`                                          | No       | Short summary for OpenAPI documentation                                      |
-|     └ `description`    | `string`                                          | No       | Longer description for the endpoint                                          |
-|     └ `tag`            | `string[]`                                        | No       | Tags used to categorize the endpoint                                         |
-| `preDefineTypeContent` | `string`                                          | No       | Optional content injected at the top of each generated `.d.ts` snapshot      |
+Visit `/docs` to see the interactive API documentation.
 
 ---
 
 ## CLI Usage
 
-```text
-Usage: @rcmade/hono-docs generate --config <path> [--output <file>]
+```bash
+# Generate OpenAPI spec
+bunx hono-auto-docs generate --config ./hono-docs.ts
 
-Options:
-  -c, --config   Path to your config file (TS or JS)        [string] [required]
-  -h, --help     Show help                                 [boolean]
+# Or add to package.json scripts
+{
+  "scripts": {
+    "docs": "hono-auto-docs generate --config ./hono-docs.ts"
+  }
+}
 ```
 
 ---
 
 ## Programmatic Usage
 
-You can use the API directly in code:
-
 ```ts
-import { runGenerate, defineConfig } from "@rcmade/hono-docs";
+import { runGenerate } from "@bacaxnot/hono-auto-docs";
 
-(async () => {
-  const cfgPath = 'yourHonoDocs.ts'
-  await runGenerate(cfgPath);
-})();
+await runGenerate("./hono-docs.ts");
 ```
 
 ---
 
-## Examples
+## Limitations
 
-Check out [`examples/basic-app/`](https://github.com/rcmade/hono-docs/tree/main/examples/basic-app) for a minimal setup.
+### `appPath` Mode Limitations
+
+The `appPath` auto-discovery only works for:
+- ✅ Single-file method-chained `.route()` calls
+- ✅ Simple import → mount patterns
+
+It does **not** support:
+- ❌ Nested/multi-level mounting
+- ❌ Conditional route registration
+- ❌ Non-chained registration patterns
+- ❌ Re-exported route aggregators
+
+**Solution**: Use `apis` mode with `@prefix` JSDoc overrides for complex setups.
+
+### AppType Requirement
+
+You **must** export `AppType` from each route module:
+
+```ts
+export const accountsApp = new Hono()
+  .get("/", (c) => { /* ... */ });
+
+// Required!
+export type AppType = typeof accountsApp;
+```
 
 ---
 
@@ -348,16 +337,19 @@ Check out [`examples/basic-app/`](https://github.com/rcmade/hono-docs/tree/main/
 
 1. Clone & install dependencies:
 
-   git clone [https://github.com/rcmade/hono-docs.git](https://github.com/rcmade/hono-docs.git)  
-   cd hono-docs  
-   pnpm install
-
    ```bash
-   1. Implement or modify code under `src/`.
-   2. Build and watch: pnpm build --watch
+   git clone https://github.com/bacaxnot/hono-auto-docs.git
+   cd hono-auto-docs
+   bun install
    ```
 
-2. Test locally via `npm link` or `file:` install in a demo project.
+2. Build and watch:
+
+   ```bash
+   bun run build --watch
+   ```
+
+3. Test locally via `bun link` or `file:` install in a demo project.
 
 ---
 
@@ -365,11 +357,11 @@ Check out [`examples/basic-app/`](https://github.com/rcmade/hono-docs/tree/main/
 
 1. Fork the repo
 2. Create a feature branch
-3. Open a PR with a clear description & tests
-4. Ensure tests pass & linting is clean
+3. Open a PR with a clear description
+4. Ensure code passes linting
 
 ---
 
 ## License
 
-[MIT](https://github.com/Rcmade/hono-docs/blob/main/LICENSE)
+[MIT](LICENSE)

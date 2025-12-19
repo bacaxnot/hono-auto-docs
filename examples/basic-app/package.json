@@ -5,7 +5,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "docs": "npx @rcmade/hono-docs generate --config ./hono-docs.ts"
+    "docs": "bunx @bacaxnot/hono-auto-docs generate --config ./hono-docs.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.4",
@@ -13,7 +13,7 @@
     "hono": "^4.8.2"
   },
   "devDependencies": {
-    "@rcmade/hono-docs": "latest",
+    "@bacaxnot/hono-auto-docs": "latest",
     "@types/node": "^20.11.17",
     "tsx": "^4.7.1",
     "typescript": "^5.8.3"
