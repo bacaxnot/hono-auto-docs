@@ -107,13 +107,24 @@ export type HonoDocsConfig = {
   };
 
   /**
+   * Path to the main app file where routes are mounted via .route() calls.
+   * When provided, routes are auto-discovered from the app file.
+   * Example: "src/index.ts"
+   *
+   * Mutually exclusive with `apis` - use either `appPath` or `apis`, not both.
+   */
+  appPath?: string;
+
+  /**
    * List of API groups (routes) to generate docs for.
    * Can be either:
    * - String: file path to route (e.g., "src/routes/accounts.ts")
    *   Auto-discovers apiPrefix and name from filename or JSDoc
    * - Object: full ApiGroup configuration (backward compatible)
+   *
+   * Mutually exclusive with `appPath` - use either `appPath` or `apis`, not both.
    */
-  apis: (string | ApiGroup)[];
+  apis?: (string | ApiGroup)[];
 
   /**
    * Optional raw string content to inject at the top of each generated `.d.ts` snapshot.

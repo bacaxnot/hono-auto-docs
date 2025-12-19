@@ -9,6 +9,7 @@ import { cleanDefaultResponse, sanitizeApiPrefix } from "../utils/format";
 import { getLibDir } from "../utils/libDir";
 import { discoverHandlersFromRoute } from "../utils/traceHandlers.js";
 import { normalizeApiGroup } from "../utils/normalizeApiGroup.js";
+import { discoverRoutesFromApp } from "../utils/discoverRoutesFromApp.js";
 
 export async function runGenerate(configPath: string) {
   const config = await loadConfig(configPath);
@@ -28,10 +29,39 @@ export async function runGenerate(configPath: string) {
   const libDir = getLibDir();
   console.log("Library root directory:", libDir);
 
-  // Normalize all API groups (convert strings to full ApiGroup objects)
-  const normalizedApis = config.apis.map((api) =>
-    normalizeApiGroup(api, project, rootPath)
-  );
+  // Validate config: either appPath or apis must be provided, not both
+  if (config.appPath && config.apis) {
+    throw new Error(
+      "Config error: cannot use both 'appPath' and 'apis'. Use either 'appPath' for auto-discovery or 'apis' for manual configuration."
+    );
+  }
+
+  if (!config.appPath && !config.apis) {
+    throw new Error(
+      "Config error: must provide either 'appPath' (for auto-discovery) or 'apis' (for manual configuration)."
+    );
+  }
+
+  // Discover or normalize API groups
+  let normalizedApis;
+  if (config.appPath) {
+    // Auto-discover routes from main app file
+    const discoveredRoutes = discoverRoutesFromApp(
+      project,
+      config.appPath,
+      rootPath,
+      config.tsConfigPath
+    );
+    // Normalize discovered routes (sets name from filename/JSDoc)
+    normalizedApis = discoveredRoutes.map((route) =>
+      normalizeApiGroup(route, project, rootPath)
+    );
+  } else {
+    // Use provided apis array (convert strings to full ApiGroup objects)
+    normalizedApis = config.apis!.map((api) =>
+      normalizeApiGroup(api, project, rootPath)
+    );
+  }
 
   const snapshotOutputRoot = path.resolve(libDir, "output/types");
   const openAPiOutputRoot = path.resolve(libDir, "output/openapi");

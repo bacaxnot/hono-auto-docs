@@ -96,13 +96,13 @@ export function normalizeApiGroup(
   project: Project,
   rootPath: string
 ): ApiGroup {
-  // Already an object - return as-is (backward compatible)
-  if (typeof api !== "string") {
+  // If it's an object with a non-empty name, return as-is (fully configured)
+  if (typeof api !== "string" && api.name) {
     return api;
   }
 
-  // It's a string path - auto-discover
-  const appTypePath = api;
+  // It's either a string path, or an object that needs name auto-discovery
+  const appTypePath = typeof api === "string" ? api : api.appTypePath;
   const filename = path.basename(appTypePath);
 
   // Try to extract JSDoc metadata from the route file
@@ -111,16 +111,26 @@ export function normalizeApiGroup(
 
   const routeMetadata = sourceFile ? extractRouteMetadata(sourceFile) : {};
 
-  // Priority: JSDoc @prefix > convention (filename)
-  const apiPrefix = routeMetadata.prefix || generatePrefixFromFilename(filename);
-
   // Priority: JSDoc @name > convention (filename)
   const name = routeMetadata.name || generateNameFromFilename(filename);
 
+  // If it's a string, also auto-discover the prefix
+  if (typeof api === "string") {
+    // Priority: JSDoc @prefix > convention (filename)
+    const apiPrefix = routeMetadata.prefix || generatePrefixFromFilename(filename);
+
+    return {
+      appTypePath,
+      apiPrefix,
+      name,
+      // No api array - let JSDoc on handlers provide all metadata
+    };
+  }
+
+  // It's an object with apiPrefix already set (from route discovery)
+  // Just fill in the name
   return {
-    appTypePath,
-    apiPrefix,
+    ...api,
     name,
-    // No api array - let JSDoc on handlers provide all metadata
   };
 }
