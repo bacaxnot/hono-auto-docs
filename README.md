@@ -1,4 +1,4 @@
-# @bacaxnot/hono-auto-docs
+# hono-auto-docs
 
 > Auto-generate OpenAPI 3.0 spec from Hono routes with JSDoc - zero config, maximum automation
 
@@ -49,13 +49,13 @@ This package enforces a JSDoc-based approach where all route metadata (@prefix, 
 
 ```bash
 # using bun
-bun add -d @bacaxnot/hono-auto-docs
+bun add -d hono-auto-docs
 
 # using npm
-npm install --save-dev @bacaxnot/hono-auto-docs
+npm install --save-dev hono-auto-docs
 
 # using yarn
-yarn add -D @bacaxnot/hono-auto-docs
+yarn add -D hono-auto-docs
 ```
 
 ---
@@ -69,7 +69,7 @@ For simple single-file route mounting patterns, just point to your main app file
 1. **Create a config file** (`hono-docs.ts`):
 
    ```ts
-   import { defineConfig } from "@bacaxnot/hono-auto-docs";
+   import { defineConfig } from "hono-auto-docs";
 
    export default defineConfig({
      tsConfigPath: "./tsconfig.json",
@@ -132,7 +132,7 @@ That's it! 🎉
 For complex mounting patterns (nested routes, conditional mounting, etc.), list route files explicitly:
 
 ```ts
-import { defineConfig } from "@bacaxnot/hono-auto-docs";
+import { defineConfig } from "hono-auto-docs";
 
 export default defineConfig({
   tsConfigPath: "./tsconfig.json",
@@ -296,7 +296,7 @@ bunx hono-auto-docs generate --config ./hono-docs.ts
 ## Programmatic Usage
 
 ```ts
-import { runGenerate } from "@bacaxnot/hono-auto-docs";
+import { runGenerate } from "hono-auto-docs";
 
 await runGenerate("./hono-docs.ts");
 ```

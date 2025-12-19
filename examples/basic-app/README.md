@@ -1,6 +1,6 @@
 # Basic App Example
 
-This example demonstrates how to use `@bacaxnot/hono-auto-docs` to automatically generate OpenAPI documentation from your Hono routes using JSDoc annotations.
+This example demonstrates how to use `hono-auto-docs` to automatically generate OpenAPI documentation from your Hono routes using JSDoc annotations.
 
 ## What's Included
 
@@ -49,7 +49,7 @@ hono-docs.ts              # OpenAPI generation config (8 lines!)
 The config uses `appPath` to auto-discover all routes:
 
 ```ts
-import { defineConfig } from "@bacaxnot/hono-auto-docs";
+import { defineConfig } from "hono-auto-docs";
 
 export default defineConfig({
   tsConfigPath: "./tsconfig.json",
@@ -127,8 +127,8 @@ Add rich documentation to each endpoint:
 Running `bun run docs` generates:
 
 - `openapi/openapi.json` - Complete OpenAPI 3.0 spec
-- `node_modules/@bacaxnot/hono-auto-docs/output/types/*.d.ts` - Type snapshots
-- `node_modules/@bacaxnot/hono-auto-docs/output/openapi/*.json` - Per-route specs
+- `node_modules/hono-auto-docs/output/types/*.d.ts` - Type snapshots
+- `node_modules/hono-auto-docs/output/openapi/*.json` - Per-route specs
 
 ## View Documentation
 

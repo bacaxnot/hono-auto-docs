@@ -1,4 +1,4 @@
-import { defineConfig } from "@bacaxnot/hono-auto-docs";
+import { defineConfig } from "hono-auto-docs";
 
 export default defineConfig({
   tsConfigPath: "./tsconfig.json",
